@@ -37,6 +37,9 @@ class MaskComponentAnalyzer:
             tuple: (количество компонентов, меток компонентов, статистика)
         """
         # Убеждаемся что маска бинарная
+        mask = mask.detach().cpu().numpy()[0,...]
+        #print(mask.shape)
+        #mask=np.int(mask)
         binary_mask = (mask > 0).astype(np.uint8)
         
         # Находим связные компоненты
@@ -89,7 +92,7 @@ class MaskComponentAnalyzer:
                 #union_area_test=(area1+area2) if (area1+area2)<=1 else 1
                 union_area_old = detected_area + reference_area - intersection_area
 
-                print(union_area,union_area_old)
+                #print(union_area,union_area_old)
                 #print(union_area_test[10:20][10:20])
                 #print(union_area==union_area_test)
                 #raise Exception()
@@ -116,6 +119,10 @@ class MaskComponentAnalyzer:
         if self.intersection_table is None:
             raise ValueError("Сначала выполните расчет пересечений")
         
+            # Проверяем, что таблица не пустая
+        if self.intersection_table.empty:
+            print("Внимание: таблица пересечений пустая, возвращаем пустую матрицу")
+            return pd.DataFrame()
         # Создаем сводную таблицу
         matrix = self.intersection_table.pivot(
             index='reference', 
@@ -160,13 +167,10 @@ class MaskComponentAnalyzer:
         #! bad FP,FN=tmp_mtx.shape
         FN=count_reference-TP #МБ так?
         FP=count_detected - TP
-
-        precision=TP/(TP+FP)
-        recall=TP/(TP+FN)
-        try:
-            f1_score= 2*(precision*recall)/(precision+recall)
-        except:
-            f1_score=0
+        eps=1e-8
+        precision=TP/(TP+FP+eps)
+        recall=TP/(TP+FN+eps)
+        f1_score= 2*(precision*recall)/(precision+recall+eps)
         return f1_score,(TP,FP,FN)
 
 
@@ -193,8 +197,8 @@ class MaskComponentAnalyzer:
             f1_score_line.append(TP_tmp[0])
             out_res.append(TP_tmp)
             filtr_step_arr.append(filtr_th)
-        print(out_res)
-        print(filtr_step_arr)
+        #print(out_res)
+        #print(filtr_step_arr)
 
         self.f1_score_line=np.array(f1_score_line)
         self.filter_th=np.array(filtr_step_arr)

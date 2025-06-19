@@ -32,17 +32,17 @@ def main(args=None):
 
     index_file_path = os.path.join(out_base_dir, 'index_gl.json')
     index_data = {"years": {}}
-    for year in range(1993, 2019):
+    for year in range(1995, 1995 + 1):
         index_data["years"][str(year)] = {
-            "vort": os.path.join(base_data_dir, f"{year}/vort_glopt_{year}.npy"),
-            "ssh_anom": os.path.join(base_data_dir, f"{year}/ssh_anom_glopt_{year}.npy"),
-            "masked_auto": os.path.join(base_data_dir, f"{year}/masked_auto_glopt_{year}.npy")
+            "vort": os.path.join(base_data_dir, f"{year}/vort.npy"),
+            "ssh_anom": os.path.join(base_data_dir, f"{year}/ssh_anom.npy"),
+            "masked_auto": os.path.join(base_data_dir, f"{year}/masked_auto.npy")
         }
     with open(index_file_path, 'w') as f:
         json.dump(index_data, f)
     print(f"Created index file for the dataset: {index_file_path}")
     
-    years = [str(y) for y in range(1994, 2019)]
+    years = [str(y) for y in range(1995, 1995 + 1)]
     dataset = OceanEddyDataset(index_file_path, years, augment=True)
     
     loader = DataLoader(dataset, batch_size = args.batch_size, shuffle=False)
@@ -69,6 +69,7 @@ def main(args=None):
             f1 = global_f1_score(outputs, masks * valid_masks, threshold=threshold)
             #!
             ss_f1,filter_th_arr = global_ss_f1_score(outputs, masks * valid_masks, threshold=threshold) #Среднее за батч
+            print(ss_f1.shape, filter_th_arr.shape)
             ss_f1_scores[threshold] = ss_f1_scores.get(threshold, 0) + ss_f1
             #!
             f1_scores[threshold] = f1_scores.get(threshold, 0) + f1
@@ -76,7 +77,7 @@ def main(args=None):
         #pbar.set_postfix({'f1': float(f1_scores[thresholds[-1]] / len(loader))})
         pbar.update(1)
     pbar.close()
-
+    #print(ss_f1_scores)
     for threshold in thresholds:
         f1_scores[threshold] /= batch_counter
         ss_f1_scores[threshold] /= batch_counter
@@ -89,7 +90,11 @@ def main(args=None):
     print(f"F1 scores saved to {os.path.join(out_diagnostics_dir, 'ss_f1_scores.pkl')}")
 
     f1_scores = np.array(list(f1_scores.items()))
-    ss_f1_scores = np.array(list(ss_f1_scores.items()))
+
+    orig_th_bin_arr = np.array(list(ss_f1_scores.keys()))
+    ss_f1_scores_mtx = np.array(list(ss_f1_scores.values()))
+    #ss_f1_scores = np.array(list(ss_f1_scores.items()))
+    print('ss_f1_shape',ss_f1_scores_mtx.shape)
     plt.scatter(f1_scores[:,0], f1_scores[:,1])
     plt.xlabel('Bin threshold')
     plt.ylabel('F1 score')
@@ -97,10 +102,11 @@ def main(args=None):
     print(f"F1 scores plot saved to {os.path.join(out_diagnostics_dir, 'f1_scores.png')}")
     plt.close()
 
-    X,Y=np.meshgrid(threshold,filter_th_arr)
-    plt.pcolormesh(X,Y,ss_f1_scores)
+    X,Y=np.meshgrid(filter_th_arr,orig_th_bin_arr)
+    plt.pcolormesh(X,Y,ss_f1_scores_mtx)
     plt.xlabel('Bin threshold')
     plt.ylabel('Filter th')
+    plt.savefig(os.path.join(out_diagnostics_dir,'ss_f1_scores.png'))
 
     f1_scores_max = f1_scores[f1_scores[:,1].argmax()][1]
     iou_optimal_threshold = f1_scores[f1_scores[:,1].argmax()][0]
